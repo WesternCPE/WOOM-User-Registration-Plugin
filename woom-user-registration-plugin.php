@@ -166,12 +166,15 @@ function woom_process_cron_task( $order_id, $item_id ) {
 				// Use the bearer token for further API calls
 
 				// Store the join_url in user meta
-				delete_user_meta( $user_id, 'join_url' );
-				update_user_meta( $user_id, 'join_url', $join_url );
+				delete_user_meta( $user_id, 'product_' . $product_id . '_join_url' );
+				update_user_meta( $user_id, 'product_' . $product_id . '_join_url', $join_url );
 
 				// Store the join_url in order item meta
-				wc_delete_order_item_meta( $item_id, 'join_url' );
-				wc_add_order_item_meta( $item_id, 'join_url', $join_url );
+				wc_delete_order_item_meta( $item_id, 'product_' . $product_id . '_join_url' );
+				wc_add_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', $join_url );
+
+				// Call the action to handle the join URL
+				do_action( 'handle_join_url', $order_id, $item_id, $user_id, $join_url );
 
 			} else {
 				// Handle error by scheduling the cron task again
