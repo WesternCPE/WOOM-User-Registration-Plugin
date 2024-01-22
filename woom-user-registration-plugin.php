@@ -50,7 +50,6 @@ function woom_schedule_cron_task( $order_id ) {
 	}
 }
 
-
 // Test Action to fire without WooCommerce checkout
 // add_action( 'plugins_loaded', 'run_woom_process_cron_task' );
 // function run_woom_process_cron_task() {
@@ -58,7 +57,6 @@ function woom_schedule_cron_task( $order_id ) {
 //  $item_id  = 0;
 //  woom_process_cron_task( $order_id, $item_id );
 // }
-
 
 // Cron task callback function
 add_action( 'woom_cron_task', 'woom_process_cron_task' );
@@ -102,6 +100,9 @@ function woom_process_cron_task( $order_id, $item_id ) {
 
 			if ( is_wp_error( $response ) ) {
 				// Handle error
+				$timestamp = strtotime( '+1 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				return;
 
 			} else {
 				$body = wp_remote_retrieve_body( $response );
