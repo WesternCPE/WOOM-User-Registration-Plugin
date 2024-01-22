@@ -75,45 +75,50 @@ function woom_process_cron_task( $order_id, $item_id ) {
 	if ( ! empty( $webinar_id ) ) {
 		// Get the order item from the item ID
 
-		// Call Zoom Authentication API to get bearer token
-		// Call Zoom Authentication API to get bearer token
-		// $api_endpoint = 'https://api.zoom.us/v2/users/me/token';
-		$api_endpoint = 'https://zoom.us/oauth/token';
+		$bearer_token = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
 
-		$headers = array(
-			'Authorization' => 'Basic ' . base64_encode( $client_key . ':' . $client_secret ),
-			'Content-Type'  => 'application/x-www-form-urlencoded',
-		);
+		if ( ! $found ) {
+			// Call Zoom Authentication API to get bearer token
+			// $api_endpoint = 'https://api.zoom.us/v2/users/me/token';
+			$api_endpoint = 'https://zoom.us/oauth/token';
 
-		$data = array(
-			'grant_type' => 'account_credentials',
-			'account_id' => $account_id,
-		);
+			$headers = array(
+				'Authorization' => 'Basic ' . base64_encode( $client_key . ':' . $client_secret ),
+				'Content-Type'  => 'application/x-www-form-urlencoded',
+			);
 
-		$response = wp_remote_post(
-			$api_endpoint,
-			array(
-				'headers' => $headers,
-				'body'    => $data,
-			)
-		);
+			$data = array(
+				'grant_type' => 'account_credentials',
+				'account_id' => $account_id,
+			);
 
-		if ( is_wp_error( $response ) ) {
-			// Handle error
+			$response = wp_remote_post(
+				$api_endpoint,
+				array(
+					'headers' => $headers,
+					'body'    => $data,
+				)
+			);
 
-		} else {
-			$body = wp_remote_retrieve_body( $response );
-			$data = json_decode( $body, true );
+			if ( is_wp_error( $response ) ) {
+				// Handle error
 
-			if ( isset( $data['access_token'] ) ) {
-				$bearer_token = $data['access_token'];
-				// Use the bearer token for further API calls
 			} else {
-				// Handle error by scheduling the cron task again
-				$timestamp = strtotime( '+1 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
-				return;
+				$body = wp_remote_retrieve_body( $response );
+				$data = json_decode( $body, true );
+
+				if ( isset( $data['access_token'] ) ) {
+					$bearer_token = $data['access_token'];
+					// Use the bearer token for further API calls
+				} else {
+					// Handle error by scheduling the cron task again
+					$timestamp = strtotime( '+1 minute' );
+					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+					return;
+				}
 			}
+
+			wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
 		}
 
 		// Call POST user bulk registration endpoint
@@ -122,7 +127,12 @@ function woom_process_cron_task( $order_id, $item_id ) {
 		// Make the API call to register the attendee for the Zoom Webinar
 		$api_endpoint = 'https://api.zoom.us/v2/webinars/' . $webinar_id . '/registrants';
 
-		$user = get_userdata( get_post_field( 'post_author', $order_id ) );
+		// $user = get_userdata( get_post_field( 'post_author', $order_id ) );
+		$order = wc_get_order( $order_id );
+
+		// Get the Customer ID (User ID)
+		$user_id = $order->get_customer_id();
+		$user    = get_userdata( $user_id );
 
 		$email      = $user->user_email;
 		$first_name = $user->first_name;
@@ -222,11 +232,11 @@ function woom_render_site_options_meta_box() {
 			<?php submit_button(); ?>
 		</form>
 	</div>
-			<?php
+	<?php
 }
 
-		// Save site options
-		add_action( 'admin_init', 'woom_save_site_options' );
+// Save site options
+add_action( 'admin_init', 'woom_save_site_options' );
 function woom_save_site_options() {
 	register_setting( 'woom_site_options_group', 'woom_account_id' );
 	register_setting( 'woom_site_options_group', 'woom_client_key' );
