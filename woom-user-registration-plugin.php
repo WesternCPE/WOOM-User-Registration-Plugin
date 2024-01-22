@@ -172,7 +172,7 @@ function woom_process_cron_task( $order_id, $item_id ) {
 
 			if ( isset( $data['join_url'] ) ) {
 				$join_url = $data['join_url'];
-				// var_dump( $join_url );
+
 				// Use the bearer token for further API calls
 
 				// Store the join_url in user meta
