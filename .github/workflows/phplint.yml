@@ -1,0 +1,11 @@
+name: PHP Linting
+on: push
+jobs:
+  phplint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: overtrue/phplint@9.0.0
+        with:
+          path: ./
+          options: --exclude=*.log
