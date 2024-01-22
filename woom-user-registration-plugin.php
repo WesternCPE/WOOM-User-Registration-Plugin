@@ -3,16 +3,16 @@
 Plugin Name: Woom User Registration Plugin
 Plugin URI: https://www.westerncpe.com/
 Description: A plugin that schedules a cron task when a user checked out of WooCommerce if the product they purchased has a webinar id value stored in a meta value for the product.
-Version: 1.0.0
+Version: 2024.1.22
 Author: Western CPE
 Author URI: https://www.westerncpe.com/
 License: BSD 3-Clause
 */
 
 // Add meta box to product edit screen
-add_action( 'add_meta_boxes', 'woom_add_webinar_id_meta_box' );
+add_action( 'add_meta_boxes', 'woom_add_webinar_id_meta_box', 5 );
 function woom_add_webinar_id_meta_box() {
-	add_meta_box( 'woom_webinar_id_meta_box', 'Webinar ID', 'woom_render_webinar_id_meta_box', 'product', 'side', 'high' );
+	add_meta_box( 'woom_webinar_id_meta_box', 'Webinar ID', 'woom_render_webinar_id_meta_box', 'product', 'side', 'default' );
 }
 
 function woom_render_webinar_id_meta_box( $post ) {
@@ -50,47 +50,137 @@ function woom_schedule_cron_task( $order_id ) {
 	}
 }
 
+
+// Test Action to fire without WooCommerce checkout
+// add_action( 'plugins_loaded', 'run_woom_process_cron_task' );
+// function run_woom_process_cron_task() {
+//  $order_id = 0;
+//  $item_id  = 0;
+//  woom_process_cron_task( $order_id, $item_id );
+// }
+
+
 // Cron task callback function
 add_action( 'woom_cron_task', 'woom_process_cron_task' );
 function woom_process_cron_task( $order_id, $item_id ) {
+	$account_id    = get_option( 'woom_account_id' );
 	$client_key    = get_option( 'woom_client_key' );
 	$client_secret = get_option( 'woom_client_secret' );
 
-	// Call Zoom Authentication API to get bearer token
-	// Replace with your actual API call
+	// $item       = wc_get_order_item( $item_id );
+	$item       = new WC_Order_Item_Product( $item_id );
+	$product_id = $item->get_product_id();
+	$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
 
-	$bearer_token = 'your_bearer_token';
+	if ( ! empty( $webinar_id ) ) {
+		// Get the order item from the item ID
 
-	// Call POST user bulk registration endpoint
-	// Replace with your actual API call
+		// Call Zoom Authentication API to get bearer token
+		// Call Zoom Authentication API to get bearer token
+		// $api_endpoint = 'https://api.zoom.us/v2/users/me/token';
+		$api_endpoint = 'https://zoom.us/oauth/token';
 
-	$first_name = 'John';
-	$last_name  = 'Doe';
-	$email      = 'john.doe@example.com';
+		$headers = array(
+			'Authorization' => 'Basic ' . base64_encode( $client_key . ':' . $client_secret ),
+			'Content-Type'  => 'application/x-www-form-urlencoded',
+		);
 
-	// Store the response and perform any necessary actions
-	// Make the API call to register the attendee for the Zoom Webinar
-	// Replace the API endpoint and parameters with the actual values for your Zoom Webinar API
-	$api_endpoint = 'https://api.zoom.us/v2/webinars/{webinar_id}/registrants';
-	$api_key      = 'your_api_key';
-	$api_secret   = 'your_api_secret';
+		$data = array(
+			'grant_type' => 'account_credentials',
+			'account_id' => $account_id,
+		);
 
-	$data = array(
-		'email' => $customer_email,
-		// Add any additional parameters as needed
-		// ...
-	);
+		$response = wp_remote_post(
+			$api_endpoint,
+			array(
+				'headers' => $headers,
+				'body'    => $data,
+			)
+		);
 
-	$headers = array(
-		'Authorization' => 'Bearer ' . base64_encode( $api_key . ':' . $api_secret ),
-		'Content-Type'  => 'application/json',
-	);
+		if ( is_wp_error( $response ) ) {
+			// Handle error
 
-	// Make the API call using a library like cURL or wp_remote_post()
-	// ...
+		} else {
+			$body = wp_remote_retrieve_body( $response );
+			$data = json_decode( $body, true );
 
-	// Return the API response
-	// ...
+			if ( isset( $data['access_token'] ) ) {
+				$bearer_token = $data['access_token'];
+				// Use the bearer token for further API calls
+			} else {
+				// Handle error by scheduling the cron task again
+				$timestamp = strtotime( '+1 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				return;
+			}
+		}
+
+		// Call POST user bulk registration endpoint
+
+		// Store the response and perform any necessary actions
+		// Make the API call to register the attendee for the Zoom Webinar
+		$api_endpoint = 'https://api.zoom.us/v2/webinars/' . $webinar_id . '/registrants';
+
+		$user = get_userdata( get_post_field( 'post_author', $order_id ) );
+
+		$email      = $user->user_email;
+		$first_name = $user->first_name;
+		$last_name  = $user->last_name;
+
+		$data = array(
+			'email'      => $email,
+			'first_name' => $first_name,
+			'last_name'  => $last_name,
+			// Add any additional parameters as needed
+			// ...
+		);
+
+		$headers = array(
+			'Authorization' => 'Bearer ' . $bearer_token,
+			'Content-Type'  => 'application/json',
+		);
+
+		$response = wp_remote_post(
+			$api_endpoint,
+			array(
+				'headers' => $headers,
+				'body'    => json_encode( $data ),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			// Handle error
+			// Handle error by scheduling the cron task again
+			$timestamp = strtotime( '+1 minute' );
+			wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+			return;
+
+		} else {
+			$body = wp_remote_retrieve_body( $response );
+			$data = json_decode( $body, true );
+
+			if ( isset( $data['join_url'] ) ) {
+				$join_url = $data['join_url'];
+				// var_dump( $join_url );
+				// Use the bearer token for further API calls
+
+				// Store the join_url in user meta
+				delete_user_meta( $user_id, 'join_url' );
+				update_user_meta( $user_id, 'join_url', $join_url );
+
+				// Store the join_url in order item meta
+				wc_delete_order_item_meta( $item_id, 'join_url' );
+				wc_add_order_item_meta( $item_id, 'join_url', $join_url );
+
+			} else {
+				// Handle error by scheduling the cron task again
+				$timestamp = strtotime( '+1 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				return;
+			}
+		}
+	}
 }
 
 
@@ -101,33 +191,41 @@ function woom_add_site_options_meta_box() {
 }
 
 function woom_render_site_options_meta_box() {
+	$account_id    = get_option( 'woom_account_id' );
 	$client_key    = get_option( 'woom_client_key' );
 	$client_secret = get_option( 'woom_client_secret' );
+
 	?>
 	<div class="wrap">
 		<h1>Woom Site Options</h1>
 		<form method="post" action="options.php">
-			<?php settings_fields( 'woom_site_options_group' ); ?>
+	<?php settings_fields( 'woom_site_options_group' ); ?>
 			<?php do_settings_sections( 'woom_site_options' ); ?>
 			<table class="form-table">
 				<tr valign="top">
+					<th scope="row">Account ID</th>
+					<td><input type="text" name="woom_account_id" value="<?php echo esc_attr( $account_id ); ?>" size="32" /></td>
+				</tr>
+				<tr valign="top">
 					<th scope="row">Zoom Client Key</th>
-					<td><input type="text" name="woom_client_key" value="<?php echo esc_attr( $client_key ); ?>" /></td>
+					<td><input type="text" name="woom_client_key" value="<?php echo esc_attr( $client_key ); ?>" size="32" /></td>
 				</tr>
 				<tr valign="top">
 					<th scope="row">Zoom Client Secret</th>
-					<td><input type="password" name="woom_client_secret" value="<?php echo esc_attr( $client_secret ); ?>" /></td>
+					<td><input type="password" name="woom_client_secret" value="<?php echo esc_attr( $client_secret ); ?>" size="32" /></td>
 				</tr>
+				
 			</table>
 			<?php submit_button(); ?>
 		</form>
 	</div>
-	<?php
+			<?php
 }
 
-// Save site options
-add_action( 'admin_init', 'woom_save_site_options' );
+		// Save site options
+		add_action( 'admin_init', 'woom_save_site_options' );
 function woom_save_site_options() {
+	register_setting( 'woom_site_options_group', 'woom_account_id' );
 	register_setting( 'woom_site_options_group', 'woom_client_key' );
 	register_setting( 'woom_site_options_group', 'woom_client_secret' );
 }
