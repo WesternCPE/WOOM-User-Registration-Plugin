@@ -51,7 +51,7 @@ function woom_schedule_cron_task( $order_id ) {
 }
 
 // Test Action to fire without WooCommerce checkout
-add_action( 'init', 'run_woom_process_cron_task' );
+// add_action( 'init', 'run_woom_process_cron_task' );
 function run_woom_process_cron_task() {
 	$order_id = 364531;
 	$item_id  = 603234;
