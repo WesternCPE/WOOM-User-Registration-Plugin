@@ -53,8 +53,8 @@ function woom_schedule_cron_task( $order_id ) {
 // Test Action to fire without WooCommerce checkout
 add_action( 'init', 'run_woom_process_cron_task' );
 function run_woom_process_cron_task() {
-	$order_id = 364527;
-	$item_id  = 603231;
+	$order_id = 364531;
+	$item_id  = 603234;
 	// woom_process_cron_task( $order_id, $item_id );
 	$timestamp = strtotime( '+1 minute' );
 	wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
@@ -73,10 +73,23 @@ function woom_process_cron_task( $order_id, $item_id ) {
 	$product_id = $item->get_product_id();
 	$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
 
-	// error_log( 'woom_process_cron_task: ' . $order_id . ' ' . $item_id . ' ' . $product_id . ' ' . $webinar_id );
-
 	if ( ! empty( $webinar_id ) ) {
 		// Get the order item from the item ID
+
+		// Avoid duplicate ZOOM API URL calls
+		if ( ! empty( wc_get_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', true ) ) ) {
+			// Handle error by scheduling the cron task
+
+			$join_url = wc_get_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', true );
+
+			$order = wc_get_order( $order_id );
+
+			// Get the Customer ID (User ID)
+			$user_id = $order->get_customer_id();
+
+			do_action( 'handle_join_url', $order_id, $item_id, $user_id, $join_url );
+			return;
+		}
 
 		$bearer_token = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
 
@@ -127,8 +140,6 @@ function woom_process_cron_task( $order_id, $item_id ) {
 			wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
 		}
 
-		// error_log( 'woom_process_cron_task: ' . $bearer_token );
-
 		// Call POST user bulk registration endpoint
 
 		// Store the response and perform any necessary actions
@@ -140,8 +151,6 @@ function woom_process_cron_task( $order_id, $item_id ) {
 
 		// Get the Customer ID (User ID)
 		$user_id = $order->get_customer_id();
-
-		// error_log( 'woom_process_cron_task: ' . $user_id );
 
 		$user = get_userdata( $user_id );
 
