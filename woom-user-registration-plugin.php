@@ -51,16 +51,19 @@ function woom_schedule_cron_task( $order_id ) {
 }
 
 // Test Action to fire without WooCommerce checkout
-// add_action( 'plugins_loaded', 'run_woom_process_cron_task' );
-// function run_woom_process_cron_task() {
-//  $order_id = 0;
-//  $item_id  = 0;
-//  woom_process_cron_task( $order_id, $item_id );
-// }
+add_action( 'init', 'run_woom_process_cron_task' );
+function run_woom_process_cron_task() {
+	$order_id = 364527;
+	$item_id  = 603231;
+	// woom_process_cron_task( $order_id, $item_id );
+	$timestamp = strtotime( '+1 minute' );
+	wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+}
 
 // Cron task callback function
-add_action( 'woom_cron_task', 'woom_process_cron_task' );
+add_action( 'woom_cron_task', 'woom_process_cron_task', 10, 2 );
 function woom_process_cron_task( $order_id, $item_id ) {
+
 	$account_id    = get_option( 'woom_account_id' );
 	$client_key    = get_option( 'woom_client_key' );
 	$client_secret = get_option( 'woom_client_secret' );
@@ -69,6 +72,8 @@ function woom_process_cron_task( $order_id, $item_id ) {
 	$item       = new WC_Order_Item_Product( $item_id );
 	$product_id = $item->get_product_id();
 	$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
+
+	// error_log( 'woom_process_cron_task: ' . $order_id . ' ' . $item_id . ' ' . $product_id . ' ' . $webinar_id );
 
 	if ( ! empty( $webinar_id ) ) {
 		// Get the order item from the item ID
@@ -122,6 +127,8 @@ function woom_process_cron_task( $order_id, $item_id ) {
 			wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
 		}
 
+		// error_log( 'woom_process_cron_task: ' . $bearer_token );
+
 		// Call POST user bulk registration endpoint
 
 		// Store the response and perform any necessary actions
@@ -133,7 +140,10 @@ function woom_process_cron_task( $order_id, $item_id ) {
 
 		// Get the Customer ID (User ID)
 		$user_id = $order->get_customer_id();
-		$user    = get_userdata( $user_id );
+
+		// error_log( 'woom_process_cron_task: ' . $user_id );
+
+		$user = get_userdata( $user_id );
 
 		$email      = $user->user_email;
 		$first_name = $user->first_name;
