@@ -9,6 +9,11 @@ Author URI: https://www.westerncpe.com/
 License: BSD 3-Clause
 */
 
+// Check if named constant is defined and define it if not
+if ( ! defined( 'WOOM_DEBUG' ) ) {
+	define( 'WOOM_DEBUG', true );
+}
+
 // Add meta box to product edit screen
 add_action( 'add_meta_boxes', 'woom_add_webinar_id_meta_box', 5 );
 function woom_add_webinar_id_meta_box() {
@@ -72,6 +77,10 @@ function woom_process_cron_task( $order_id, $item_id ) {
 	$item       = new WC_Order_Item_Product( $item_id );
 	$product_id = $item->get_product_id();
 	$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
+
+	if ( WOOM_DEBUG ) {
+		error_log( 'woom_process_cron_task: ' . $order_id . ', ' . $item_id . ', ' . $product_id . ', ' . $webinar_id );
+	}
 
 	if ( ! empty( $webinar_id ) ) {
 		// Get the order item from the item ID
@@ -140,6 +149,10 @@ function woom_process_cron_task( $order_id, $item_id ) {
 			wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
 		}
 
+		if ( WOOM_DEBUG ) {
+			error_log( 'bearer_token: ' . $bearer_token );
+		}
+
 		// Call POST user bulk registration endpoint
 
 		// Store the response and perform any necessary actions
@@ -166,6 +179,10 @@ function woom_process_cron_task( $order_id, $item_id ) {
 			// ...
 		);
 
+		if ( WOOM_DEBUG ) {
+			error_log( 'data: ' . print_r( $data, true ) );
+		}
+
 		$headers = array(
 			'Authorization' => 'Bearer ' . $bearer_token,
 			'Content-Type'  => 'application/json',
@@ -189,6 +206,10 @@ function woom_process_cron_task( $order_id, $item_id ) {
 		} else {
 			$body = wp_remote_retrieve_body( $response );
 			$data = json_decode( $body, true );
+
+			if ( WOOM_DEBUG ) {
+				error_log( 'response: ' . print_r( $data, true ) );
+			}
 
 			if ( isset( $data['join_url'] ) ) {
 				$join_url = $data['join_url'];
