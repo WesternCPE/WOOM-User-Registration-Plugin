@@ -63,8 +63,10 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				$this->activate();
 			}
 		}
-	} // end __construct
 
+		// zoom_registration_link
+		add_shortcode( 'woom_registration_link', array( $this, 'woom_registration_link' ) );
+	} // end __construct
 
 	public function activate() {
 		// BEGIN: Add table using dbDelta
@@ -564,6 +566,40 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 		register_setting( 'woom_site_options_group', 'woom_account_id' );
 		register_setting( 'woom_site_options_group', 'woom_client_key' );
 		register_setting( 'woom_site_options_group', 'woom_client_secret' );
+	}
+
+	public function woom_registration_link( $atts, $content = '' ) {
+		$atts = shortcode_atts(
+			array(
+				'product_id' => 0,
+				'user_id'    => 0,
+			),
+			$atts,
+			'woom_registration_link'
+		);
+
+		if ( 0 === intval( $atts['user_id'] ) ) {
+			$user_id = get_current_user_id();
+		} else {
+			$user_id = $atts['user_id'];
+		}
+
+		if ( 0 === intval( $atts['product_id'] ) ) {
+			$product_id = get_the_ID();
+		} else {
+			$product_id = intval( $atts['product_id'] );
+		}
+
+		$results = '';
+
+		if ( 0 < $user_id && 0 < $product_id ) {
+
+			if ( get_user_meta( $user_id, 'product_' . $product_id . '_join_url', true ) ) {
+				$results .= '<a href="' . get_user_meta( $user_id, 'zoom_registration_link_' . $atts['product_id'], true ) . '" class="button" target="_BLANK" data-product_id="' . $product_id . '">Join Live Webcast</a>';
+			}
+		}
+
+		return $results;
 	}
 }
 
