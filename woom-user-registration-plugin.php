@@ -174,12 +174,12 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			'product_id' => $product_id,
 			'user_id'    => $user_id,
 			'webinar_id' => $webinar_id,
-			'cron_date'  => date( 'Y-m-d H:i:s' ),
+			'cron_date'  => gmdate( 'Y-m-d H:i:s' ),
 		);
 
 		$results = $wpdb->insert( $table_name, $data );
 
-		if ( $results !== false ) {
+		if ( false !== $results ) {
 			$this->logging_entry_id = $wpdb->insert_id;
 		}
 	}
