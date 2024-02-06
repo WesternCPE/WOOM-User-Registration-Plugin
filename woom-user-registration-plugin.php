@@ -20,7 +20,7 @@ if ( ! defined( 'WOOM_LOGGING' ) ) {
 
 
 if ( ! defined( 'WOOM_USER_REGISTRATION_VERSION' ) ) {
-	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.2.4' );
+	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.2.5' );
 }
 
 /**
@@ -162,7 +162,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 	public function run_woom_process_cron_task() {
 		// $order_id = 369877;
-		$item_id = 612295;
+		$item_id = 612300;
 
 		$item       = new WC_Order_Item_Product( $item_id );
 		$order_id   = $item->get_order_id();
@@ -252,15 +252,8 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 			}
 
-			if ( WOOM_DEBUG ) {
-				error_log( 'bearer_token: ' . 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ) );
-			}
-
+			$found        = false;
 			$bearer_token = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
-
-			if ( WOOM_DEBUG ) {
-				error_log( 'bearer_token: ' . $bearer_token );
-			}
 
 			// $found
 			// bool
@@ -352,14 +345,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 						// Store the bearer token in cache
 						$wp_cache_set = wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
-						if ( WOOM_DEBUG ) {
-							error_log( 'bearer_token: wp_cache_set ' . $wp_cache_set );
-						}
-						$wp_cache_get = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
 
-						if ( WOOM_DEBUG ) {
-							error_log( 'bearer_token: wp_cache_get ' . $wp_cache_get );
-						}
 					} else {
 						// Handle error by scheduling the cron task again
 						$timestamp = strtotime( '+10 minute' );
@@ -445,9 +431,16 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 				$join_url = wc_get_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', true );
 
+				$error_message = 'Join URL Already Exists';
+
+				if ( WOOM_DEBUG ) {
+					error_log( 'join_url: ' . $error_message );
+				}
+
 				if ( WOOM_LOGGING ) {
 					$data = array(
-						'join_url' => $join_url,
+						'join_url'        => $join_url,
+						'request_headers' => $error_message,
 					);
 
 					$this->update_woom_logging_entry( $data );
