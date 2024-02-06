@@ -108,10 +108,10 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 		// echo $wpdb->last_error;
 
 		// if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
-		// 	// Table was not created !!
-		// 	var_dump( 'Table Created!!' );
+		//  // Table was not created !!
+		//  var_dump( 'Table Created!!' );
 		// } else {
-		// 	var_dump( 'Table FAILED Created!!' );
+		//  var_dump( 'Table FAILED Created!!' );
 		// }
 
 		// die();
@@ -150,7 +150,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 			if ( ! empty( $webinar_id ) ) {
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 				$user_id = $order->get_customer_id();
 				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
@@ -161,11 +161,22 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 	}
 
 	public function run_woom_process_cron_task() {
-		$order_id = 364676;
-		$item_id  = 603366;
+		// $order_id = 369877;
+		$item_id = 612295;
+
+		$item       = new WC_Order_Item_Product( $item_id );
+		$order_id   = $item->get_order_id();
+		$product_id = $item->get_product_id();
+		$order      = wc_get_order( $order_id );
+		$user_id    = $order->get_customer_id();
+
 		// woom_process_cron_task( $order_id, $item_id );
 		$timestamp = strtotime( '+1 minute' );
-		wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+		wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+
+		$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
+
+		$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 	}
 
 
@@ -238,11 +249,18 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			$user_id = $order->get_customer_id();
 
 			if ( WOOM_LOGGING ) {
-
 				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 			}
 
+			if ( WOOM_DEBUG ) {
+				error_log( 'bearer_token: ' . 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ) );
+			}
+
 			$bearer_token = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
+
+			if ( WOOM_DEBUG ) {
+				error_log( 'bearer_token: ' . $bearer_token );
+			}
 
 			// $found
 			// bool
@@ -307,7 +325,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				if ( is_wp_error( $response ) ) {
 					// Handle error
 					$timestamp = strtotime( '+10 minute' );
-					wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 					$error_string = $response->get_error_message();
 
@@ -333,12 +351,19 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 						// Use the bearer token for further API calls
 
 						// Store the bearer token in cache
-						wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
+						$wp_cache_set = wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
+						if ( WOOM_DEBUG ) {
+							error_log( 'bearer_token: wp_cache_set ' . $wp_cache_set );
+						}
+						$wp_cache_get = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
 
+						if ( WOOM_DEBUG ) {
+							error_log( 'bearer_token: wp_cache_get ' . $wp_cache_get );
+						}
 					} else {
 						// Handle error by scheduling the cron task again
 						$timestamp = strtotime( '+10 minute' );
-						wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+						wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 						if ( WOOM_DEBUG ) {
 							error_log( 'bearer_token: ' . $body );
@@ -376,7 +401,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				}
 
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 				return false;
 			} else {
@@ -400,7 +425,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				}
 
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 				return false;
 			}
@@ -493,7 +518,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				// Handle error
 				// Handle error by scheduling the cron task again
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 				$error_string = $response->get_error_message();
 
@@ -546,7 +571,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 				} else {
 					// Handle error by scheduling the cron task again
 					$timestamp = strtotime( '+10 minute' );
-					wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
 					$error_message = 'Join URL Not Found in Response';
 					if ( WOOM_LOGGING ) {
@@ -634,9 +659,20 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 		if ( 0 < $user_id && 0 < $product_id ) {
 
-			if ( get_user_meta( $user_id, 'product_' . $product_id . '_join_url', true ) ) {
-				$results .= '<a href="' . get_user_meta( $user_id, 'zoom_registration_link_' . $atts['product_id'], true ) . '" class="button" target="_BLANK" data-product_id="' . $product_id . '">Join Live Webcast</a>';
+			$join_url = get_user_meta( $user_id, 'product_' . $product_id . '_join_url', true );
+
+			$results  = '<div ';
+			$results .= 'data-user_id="' . $user_id . '" ';
+			$results .= 'data-product_id="' . $product_id . '" ';
+			$results .= 'data-join_url="' . $join_url . '" ';
+			$results .= '>';
+
+			if ( $join_url ) {
+
+				$results .= '<a href="' . $join_url . '" class="button join-live-webcast-link" target="_BLANK" data-product_id="' . $product_id . '">Join Live Webcast</a>';
 			}
+
+			$results .= '</div>';
 		}
 
 		return $results;
