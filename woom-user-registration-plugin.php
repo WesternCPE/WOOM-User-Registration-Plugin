@@ -20,7 +20,7 @@ if ( ! defined( 'WOOM_LOGGING' ) ) {
 
 
 if ( ! defined( 'WOOM_USER_REGISTRATION_VERSION' ) ) {
-	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.1.32' );
+	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.2.4' );
 }
 
 /**
@@ -83,6 +83,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			product_id INT(11) NOT NULL,
 			webinar_id INT(11) NOT NULL,
 			cron_date DATETIME NOT NULL,
+			calling_function TEXT,
 			request_data TEXT,
 			response_data TEXT,
 			request_headers TEXT,
@@ -107,10 +108,10 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 		// echo $wpdb->last_error;
 
 		// if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
-		//  // Table was not created !!
-		//  var_dump( 'Table Created!!' );
+		// 	// Table was not created !!
+		// 	var_dump( 'Table Created!!' );
 		// } else {
-		//  var_dump( 'Table FAILED Created!!' );
+		// 	var_dump( 'Table FAILED Created!!' );
 		// }
 
 		// die();
@@ -148,8 +149,12 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
 
 			if ( ! empty( $webinar_id ) ) {
-				$timestamp = strtotime( '+1 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				$timestamp = strtotime( '+10 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+
+				$user_id = $order->get_customer_id();
+				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
+
 				break;
 			}
 		}
@@ -160,23 +165,24 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 		$item_id  = 603366;
 		// woom_process_cron_task( $order_id, $item_id );
 		$timestamp = strtotime( '+1 minute' );
-		wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+		wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
 	}
 
 
 
-	public function create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id ) {
+	public function create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, $calling_function = '' ) {
 		global $wpdb;
 
 		$table_name = $wpdb->prefix . 'woom_logging';
 
 		$data = array(
-			'order_id'   => $order_id,
-			'item_id'    => $item_id,
-			'product_id' => $product_id,
-			'user_id'    => $user_id,
-			'webinar_id' => $webinar_id,
-			'cron_date'  => gmdate( 'Y-m-d H:i:s' ),
+			'order_id'         => $order_id,
+			'item_id'          => $item_id,
+			'product_id'       => $product_id,
+			'user_id'          => $user_id,
+			'webinar_id'       => $webinar_id,
+			'cron_date'        => gmdate( 'Y-m-d H:i:s' ),
+			'calling_function' => $calling_function,
 		);
 
 		$results = $wpdb->insert( $table_name, $data );
@@ -233,7 +239,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 			if ( WOOM_LOGGING ) {
 
-				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id );
+				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 			}
 
 			$bearer_token = wp_cache_get( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), 'woom_plugin', false, $found );
@@ -300,8 +306,22 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 				if ( is_wp_error( $response ) ) {
 					// Handle error
-					$timestamp = strtotime( '+1 minute' );
-					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+					$timestamp = strtotime( '+10 minute' );
+					wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+
+					$error_string = $response->get_error_message();
+
+					if ( WOOM_DEBUG ) {
+						error_log( 'bearer_token: ' . $error_string );
+					}
+
+					if ( WOOM_LOGGING ) {
+						$data = array(
+							'bearer_token' => $error_string,
+						);
+						$this->update_woom_logging_entry( $data );
+					}
+
 					return;
 
 				} else {
@@ -317,8 +337,19 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 					} else {
 						// Handle error by scheduling the cron task again
-						$timestamp = strtotime( '+1 minute' );
-						wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+						$timestamp = strtotime( '+10 minute' );
+						wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+
+						if ( WOOM_DEBUG ) {
+							error_log( 'bearer_token: ' . $body );
+						}
+
+						if ( WOOM_LOGGING ) {
+							$data = array(
+								'bearer_token' => $body,
+							);
+							$this->update_woom_logging_entry( $data );
+						}
 						return;
 					}
 				}
@@ -343,6 +374,10 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 					);
 					$this->update_woom_logging_entry( $data );
 				}
+
+				$timestamp = strtotime( '+10 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+
 				return false;
 			} else {
 				$error_message = sprintf( 'Token Valid [difference: %s] [token: %d] [time: %d]', human_time_diff( $token_data->exp, time() ), $token_data->exp, time() );
@@ -363,6 +398,10 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 					);
 					$this->update_woom_logging_entry( $data );
 				}
+
+				$timestamp = strtotime( '+10 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+
 				return false;
 			}
 
@@ -453,8 +492,8 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			if ( is_wp_error( $response ) ) {
 				// Handle error
 				// Handle error by scheduling the cron task again
-				// $timestamp = strtotime( '+1 minute' );
-				// wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				$timestamp = strtotime( '+10 minute' );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
 
 				$error_string = $response->get_error_message();
 
@@ -469,7 +508,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 					$this->update_woom_logging_entry( $data );
 				}
 
-				return;
+				return false;
 
 			} else {
 				$body          = wp_remote_retrieve_body( $response );
@@ -506,8 +545,9 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 				} else {
 					// Handle error by scheduling the cron task again
-					// $timestamp = strtotime( '+1 minute' );
-					// wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+					$timestamp = strtotime( '+10 minute' );
+					wp_schedule_single_event( $timestamp, 'woom_cron_task_' . $order_id, array( $order_id, $item_id ) );
+
 					$error_message = 'Join URL Not Found in Response';
 					if ( WOOM_LOGGING ) {
 						$data = array(
