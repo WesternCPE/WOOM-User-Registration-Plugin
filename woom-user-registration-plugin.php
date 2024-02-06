@@ -667,7 +667,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			if ( $join_url ) {
 
 				// $results .= '<div style="text-align: center;">';
-				$results .= '<a href="' . $join_url . '" class="not-a-button join-live-webcast-link" target="_BLANK" data-product_id="' . $product_id . '" target="_BLANK">Join Live Webcast</a>';
+				$results .= '<a href="' . $join_url . '" class="join-live-webcast-link" target="_BLANK" data-product_id="' . $product_id . '" target="_BLANK">Join Live Webcast</a>';
 				// $results .= '</div>';
 
 				// $results .= '<div style="margin-top: 5px; text-align: center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' . urlencode( $join_url ) . '" /></div>';
