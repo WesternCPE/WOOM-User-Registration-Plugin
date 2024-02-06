@@ -621,6 +621,10 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 
 	public function woom_save_site_options() {
+		// test call for checkout hook
+		// $this->woom_schedule_cron_task( 369888 );
+		// $this->woom_schedule_cron_task( 369889 );
+
 		register_setting( 'woom_site_options_group', 'woom_account_id' );
 		register_setting( 'woom_site_options_group', 'woom_client_key' );
 		register_setting( 'woom_site_options_group', 'woom_client_secret' );
