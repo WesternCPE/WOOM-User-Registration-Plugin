@@ -586,11 +586,11 @@ class WOOM_USER_REGISTRATION {
 
 						// Store the join_url in user meta
 						delete_user_meta( $user_id, 'product_' . $product_id . '_join_url' );
-						// update_user_meta( $user_id, 'product_' . $product_id . '_join_url', $join_url );
+						update_user_meta( $user_id, 'product_' . $product_id . '_join_url', $join_url );
 
 						// Store the join_url in order item meta
 						wc_delete_order_item_meta( $item_id, 'product_' . $product_id . '_join_url' );
-						// wc_add_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', $join_url );
+						wc_add_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', $join_url );
 
 						if ( WOOM_LOGGING ) {
 							$data = array(
