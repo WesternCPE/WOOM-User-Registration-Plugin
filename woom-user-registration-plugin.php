@@ -23,6 +23,11 @@ if ( ! defined( 'WOOM_USER_REGISTRATION_VERSION' ) ) {
 	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.2.5' );
 }
 
+// unix timestamp of start time of event
+if ( ! defined( 'WOOM_PRODUCT_START_TIME_META' ) ) {
+	define( 'WOOM_PRODUCT_START_TIME_META', 'wpcf-event-start-date-and-time' );
+}
+
 /**
  * Class WCPE_GROUPS_KLAVIYO
  */
@@ -43,7 +48,8 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 		add_action( 'save_post_product', array( $this, 'woom_save_webinar_id_meta_value' ) );
 
 		// Schedule cron task after WooCommerce checkout
-		add_action( 'woocommerce_checkout_order_processed', array( $this, 'woom_schedule_cron_task' ) );
+		// add_action( 'woocommerce_checkout_order_processed', array( $this, 'woom_schedule_cron_task' ) );
+		add_action( 'woocommerce_thankyou', array( $this, 'woom_schedule_cron_task' ) );
 
 		// Cron task callback function
 		add_action( 'woom_cron_task', array( $this, 'woom_process_cron_task' ), 10, 2 );
@@ -149,13 +155,24 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 			$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
 
 			if ( ! empty( $webinar_id ) ) {
-				$timestamp = strtotime( '+10 minute' );
+				$timestamp = strtotime( '+1 minute' );
 				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
 
-				$user_id = $order->get_customer_id();
-				$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
+				if ( WOOM_LOGGING ) {
+					$user_id = $order->get_customer_id();
+					$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
+				}
 
-				break;
+				$start_date = get_post_meta( $product_id, WOOM_PRODUCT_START_TIME_META, true );
+				// sets time to 12:00 am
+				$date              = date( 'Y-m-d', $start_date );
+				$midnightTimestamp = strtotime( $date );
+
+				// Aftern midnight on day of event
+				if ( $midnightTimestamp < time() ) {
+					// directly call the cron task
+					woom_process_cron_task( $order_id, $item_id );
+				}
 			}
 		}
 	}
@@ -660,7 +677,7 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 			$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
 
-			$start_date = get_post_meta( $product_id, 'wpcf-event-start-date-and-time', true );
+			$start_date = get_post_meta( $product_id, WOOM_PRODUCT_START_TIME_META, true );
 
 			// sets time to 12:00 am
 			$date              = date( 'Y-m-d', $start_date );
