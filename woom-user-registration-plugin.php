@@ -658,22 +658,44 @@ class WOOM_USER_REGISTRATION_PLUGIN {
 
 			$join_url = get_user_meta( $user_id, 'product_' . $product_id . '_join_url', true );
 
-			$results  = '<div ';
-			$results .= 'data-user_id="' . $user_id . '" ';
-			$results .= 'data-product_id="' . $product_id . '" ';
-			$results .= 'data-join_url="' . $join_url . '" ';
-			$results .= '>';
+			$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
+
+			$start_date = get_post_meta( $product_id, 'wpcf-event-start-date-and-time', true );
+
+			// sets time to 12:00 am
+			$date              = date( 'Y-m-d', $start_date );
+			$midnightTimestamp = strtotime( $date );
+
+			// Before midnight and don't have a join link
+			if ( ! $join_url && $midnightTimestamp > time() ) {
+				if ( '' !== $content ) {
+					return $content;
+				} else {
+					return 'Please check back later for the join link.';
+				}
+			}
+
+			// $results  = '<div ';
+			// $results .= 'data-user_id="' . $user_id . '" ';
+			// $results .= 'data-product_id="' . $product_id . '" ';
+			// $results .= 'data-join_url="' . $join_url . '" ';
+			// $results .= 'data-start_date="' . $start_date . '" ';
+			// $results .= 'data-start_date_midnight="' . $date . '" ';
+			// $results .= 'data-start_timestamp_midnight="' . $midnightTimestamp . '" ';
+			// $results .= 'data-current_timestamp="' . time() . '" ';
+			// $results .= '>';
 
 			if ( $join_url ) {
 
-				// $results .= '<div style="text-align: center;">';
 				$results .= '<a href="' . $join_url . '" class="join-live-webcast-link" target="_BLANK" data-product_id="' . $product_id . '" target="_BLANK">Join Live Webcast</a>';
-				// $results .= '</div>';
-
+				// QR Image Code
 				// $results .= '<div style="margin-top: 5px; text-align: center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' . urlencode( $join_url ) . '" /></div>';
+			} else {
+				$results .= '<a href="https://us06web.zoom.us/webinar/register/' . $webinar_id . '" class="join-live-webcast-link" target="_BLANK" data-product_id="' . $product_id . '" target="_BLANK">Join Live Webcast</a>';
+
 			}
 
-			$results .= '</div>';
+			// $results .= '</div>';
 		}
 
 		return $results;
