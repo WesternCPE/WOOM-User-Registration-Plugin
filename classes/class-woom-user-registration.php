@@ -139,11 +139,11 @@ class WOOM_USER_REGISTRATION {
 
 				$start_date = get_post_meta( $product_id, WOOM_PRODUCT_START_TIME_META, true );
 				// sets time to 12:00 am
-				$date              = date( 'Y-m-d', $start_date );
-				$midnightTimestamp = strtotime( $date );
+				$date               = gmdate( 'Y-m-d', $start_date );
+				$midnight_timestamp = strtotime( $date );
 
 				// Aftern midnight on day of event
-				if ( $midnightTimestamp < time() ) {
+				if ( $midnight_timestamp < time() ) {
 					// directly call the cron task
 					woom_process_cron_task( $order_id, $item_id );
 				}
@@ -654,11 +654,11 @@ class WOOM_USER_REGISTRATION {
 			$start_date = get_post_meta( $product_id, WOOM_PRODUCT_START_TIME_META, true );
 
 			// sets time to 12:00 am
-			$date              = date( 'Y-m-d', $start_date );
-			$midnightTimestamp = strtotime( $date );
+			$date               = gmdate( 'Y-m-d', $start_date );
+			$midnight_timestamp = strtotime( $date );
 
 			// Before midnight and don't have a join link
-			if ( ! $join_url && $midnightTimestamp > time() ) {
+			if ( ! $join_url && $midnight_timestamp > time() ) {
 				if ( '' !== $content ) {
 					return $content;
 				} else {
@@ -672,7 +672,7 @@ class WOOM_USER_REGISTRATION {
 			// $results .= 'data-join_url="' . $join_url . '" ';
 			// $results .= 'data-start_date="' . $start_date . '" ';
 			// $results .= 'data-start_date_midnight="' . $date . '" ';
-			// $results .= 'data-start_timestamp_midnight="' . $midnightTimestamp . '" ';
+			// $results .= 'data-start_timestamp_midnight="' . $midnight_timestamp . '" ';
 			// $results .= 'data-current_timestamp="' . time() . '" ';
 			// $results .= '>';
 
