@@ -24,7 +24,7 @@ class WOOM_USER_REGISTRATION {
 		add_action( 'woocommerce_thankyou', array( $this, 'woom_schedule_cron_task' ) );
 
 		// Cron task callback function
-		add_action( 'woom_cron_task', array( $this, 'woom_process_cron_task' ), 10, 2 );
+		add_action( 'woom_cron_task', array( $this, 'woom_process_cron_task' ), 10, 3 );
 
 		// Add meta box to site options page
 		add_action( 'admin_menu', array( $this, 'woom_add_site_options_meta_box' ) );
@@ -145,7 +145,7 @@ class WOOM_USER_REGISTRATION {
 				// Aftern midnight on day of event
 				if ( $midnight_timestamp < time() ) {
 					// directly call the cron task
-					woom_process_cron_task( $order_id, $item_id );
+					woom_process_cron_task( $order_id, $item_id, 0 );
 				}
 			}
 		}
@@ -153,7 +153,7 @@ class WOOM_USER_REGISTRATION {
 
 	public function run_woom_process_cron_task() {
 		// $order_id = 369877;
-		$item_id = 612300;
+		$item_id = 612324;
 
 		$item       = new WC_Order_Item_Product( $item_id );
 		$order_id   = $item->get_order_id();
@@ -163,7 +163,7 @@ class WOOM_USER_REGISTRATION {
 
 		// woom_process_cron_task( $order_id, $item_id );
 		$timestamp = strtotime( '+1 minute' );
-		wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+		wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, 0 ) );
 
 		$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
 
@@ -216,7 +216,7 @@ class WOOM_USER_REGISTRATION {
 		}
 	}
 
-	public function woom_process_cron_task( $order_id, $item_id ) {
+	public function woom_process_cron_task( $order_id, $item_id, $previous_status_code = 0 ) {
 
 		$account_id    = get_option( 'woom_account_id' );
 		$client_key    = get_option( 'woom_client_key' );
@@ -306,10 +306,16 @@ class WOOM_USER_REGISTRATION {
 					)
 				);
 
+				$status_code = wp_remote_retrieve_response_code( $response );
+
+				if ( WOOM_DEBUG ) {
+					error_log( 'Status Code: ' . $status_code );
+				}
+
 				if ( is_wp_error( $response ) ) {
 					// Handle error
 					$timestamp = strtotime( '+10 minute' );
-					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, -1 ) );
 
 					$error_string = $response->get_error_message();
 
@@ -327,20 +333,51 @@ class WOOM_USER_REGISTRATION {
 					return;
 
 				} else {
-					$body = wp_remote_retrieve_body( $response );
-					$data = json_decode( $body, true );
 
-					if ( isset( $data['access_token'] ) ) {
-						$bearer_token = $data['access_token'];
-						// Use the bearer token for further API calls
+					if ( 200 === $status_code ) {
+						$body = wp_remote_retrieve_body( $response );
+						$data = json_decode( $body, true );
 
-						// Store the bearer token in cache
-						$wp_cache_set = wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
+						if ( isset( $data['access_token'] ) ) {
+							$bearer_token = $data['access_token'];
+							// Use the bearer token for further API calls
 
+							// Store the bearer token in cache
+							$wp_cache_set = wp_cache_set( 'bearer_token_' . base64_encode( $client_key . ':' . $client_secret ), $bearer_token, 'woom_plugin', 3000 );
+
+							if ( WOOM_DEBUG ) {
+								error_log( 'bearer_token: ' . $body );
+							}
+
+							if ( WOOM_LOGGING ) {
+								$data = array(
+									'bearer_token' => $body,
+									'bearer_token_status_code' => $status_code,
+								);
+								$this->update_woom_logging_entry( $data );
+							}
+						} else {
+							// Handle error by scheduling the cron task again
+							$timestamp = strtotime( '+10 minute' );
+							wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, $status_code ) );
+
+							if ( WOOM_DEBUG ) {
+								error_log( 'bearer_token: ' . $body );
+							}
+
+							if ( WOOM_LOGGING ) {
+								$data = array(
+									'bearer_token' => $body,
+									'bearer_token_status_code' => $status_code,
+								);
+								$this->update_woom_logging_entry( $data );
+							}
+							return;
+						}
 					} else {
 						// Handle error by scheduling the cron task again
 						$timestamp = strtotime( '+10 minute' );
-						wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+						wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, $status_code ) );
 
 						if ( WOOM_DEBUG ) {
 							error_log( 'bearer_token: ' . $body );
@@ -348,11 +385,13 @@ class WOOM_USER_REGISTRATION {
 
 						if ( WOOM_LOGGING ) {
 							$data = array(
-								'bearer_token' => $body,
+								'bearer_token'             => $body,
+								'bearer_token_status_code' => $status_code,
 							);
 							$this->update_woom_logging_entry( $data );
 						}
 						return;
+
 					}
 				}
 			}
@@ -378,7 +417,7 @@ class WOOM_USER_REGISTRATION {
 				}
 
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, $status_code ) );
 
 				return false;
 			} else {
@@ -402,7 +441,7 @@ class WOOM_USER_REGISTRATION {
 				}
 
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, $status_code ) );
 
 				return false;
 			}
@@ -502,7 +541,7 @@ class WOOM_USER_REGISTRATION {
 				// Handle error
 				// Handle error by scheduling the cron task again
 				$timestamp = strtotime( '+10 minute' );
-				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+				wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, -1 ) );
 
 				$error_string = $response->get_error_message();
 
@@ -510,9 +549,13 @@ class WOOM_USER_REGISTRATION {
 					error_log( 'Response: ' . $error_string );
 				}
 
+				// $status_code = wp_remote_retrieve_response_code( $response );
+
 				if ( WOOM_LOGGING ) {
 					$data = array(
 						'response_data' => $error_string,
+						// Status code not available on wp_error
+						// 'response_status_code' => $status_code,
 					);
 					$this->update_woom_logging_entry( $data );
 				}
@@ -520,39 +563,107 @@ class WOOM_USER_REGISTRATION {
 				return false;
 
 			} else {
-				$body          = wp_remote_retrieve_body( $response );
-				$response_data = json_decode( $body, true );
+				$body = wp_remote_retrieve_body( $response );
+
+				$status_code = wp_remote_retrieve_response_code( $response );
 
 				if ( WOOM_DEBUG ) {
-					error_log( 'Response: ' . print_r( $response_data, true ) );
+					error_log( 'Status Code: ' . $status_code );
 				}
 
-				if ( isset( $response_data['join_url'] ) ) {
-					$join_url = $response_data['join_url'];
+				if ( 201 === $status_code ) {
 
-					// Use the bearer token for further API calls
+					$response_data = json_decode( $body, true );
 
-					// Store the join_url in user meta
-					delete_user_meta( $user_id, 'product_' . $product_id . '_join_url' );
-					update_user_meta( $user_id, 'product_' . $product_id . '_join_url', $join_url );
+					if ( WOOM_DEBUG ) {
+						error_log( 'Response: ' . print_r( $response_data, true ) );
+					}
 
-					// Store the join_url in order item meta
-					wc_delete_order_item_meta( $item_id, 'product_' . $product_id . '_join_url' );
-					wc_add_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', $join_url );
+					if ( isset( $response_data['join_url'] ) ) {
+						$join_url = $response_data['join_url'];
+
+						// Use the bearer token for further API calls
+
+						// Store the join_url in user meta
+						delete_user_meta( $user_id, 'product_' . $product_id . '_join_url' );
+						// update_user_meta( $user_id, 'product_' . $product_id . '_join_url', $join_url );
+
+						// Store the join_url in order item meta
+						wc_delete_order_item_meta( $item_id, 'product_' . $product_id . '_join_url' );
+						// wc_add_order_item_meta( $item_id, 'product_' . $product_id . '_join_url', $join_url );
+
+						if ( WOOM_LOGGING ) {
+							$data = array(
+								'join_url'             => $join_url,
+								'response_data'        => json_encode( $response_data ),
+								'response_status_code' => $status_code,
+							);
+
+							$this->update_woom_logging_entry( $data );
+						}
+
+						// Call the action to handle the join URL
+						do_action( 'handle_join_url', $order_id, $item_id, $user_id, $join_url );
+
+					} else {
+						// Handle error by scheduling the cron task again
+						$timestamp = strtotime( '+10 minute' );
+						wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
+
+						$error_message = 'Join URL Not Found in Response';
+						if ( WOOM_LOGGING ) {
+							$data = array(
+								'join_url'             => $error_message,
+								'response_data'        => $body,
+								'response_status_code' => $status_code,
+							);
+
+							$this->update_woom_logging_entry( $data );
+						}
+						return;
+					}
+				} elseif ( 429 === $status_code ) {
+					// Handle error by scheduling the cron task again
+
+					if ( WOOM_DEBUG ) {
+						error_log( 'Response: ' . $body );
+					}
+
+					// Get the midnight of the next day (API resets at 00:00 UTC)
+					$timestamp = strtotime( 'tomorrow 11:00' );
+
+					$start_date = get_post_meta( $product_id, WOOM_PRODUCT_START_TIME_META, true );
+
+					if ( $timestamp < $start_date ) {
+						wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, 429 ) );
+
+					} else {
+						// Don't bother scheduling the cron task, as would be past event
+
+					}
+
+					$error_message = 'Exceed a rate limit, the API request will fail and return a HTTP 429 status code';
+
+					if ( WOOM_DEBUG ) {
+						error_log( 'Product ID: ' . $product_id );
+						error_log( WOOM_PRODUCT_START_TIME_META );
+						error_log( 'Start Date: ' . $start_date );
+						error_log( 'Timestamp: ' . $timestamp );
+					}
 
 					if ( WOOM_LOGGING ) {
 						$data = array(
-							'join_url'      => $join_url,
-							'response_data' => json_encode( $response_data ),
+							'join_url'             => $error_message,
+							'response_data'        => $body,
+							'response_status_code' => $status_code,
 						);
 
 						$this->update_woom_logging_entry( $data );
 					}
-
-					// Call the action to handle the join URL
-					do_action( 'handle_join_url', $order_id, $item_id, $user_id, $join_url );
+					return;
 
 				} else {
+
 					// Handle error by scheduling the cron task again
 					$timestamp = strtotime( '+10 minute' );
 					wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id ) );
@@ -560,13 +671,15 @@ class WOOM_USER_REGISTRATION {
 					$error_message = 'Join URL Not Found in Response';
 					if ( WOOM_LOGGING ) {
 						$data = array(
-							'join_url'      => $error_message,
-							'response_data' => json_encode( $response_data ),
+							'join_url'             => $error_message,
+							'response_data'        => json_encode( $response_data ),
+							'response_status_code' => $status_code,
 						);
 
 						$this->update_woom_logging_entry( $data );
 					}
 					return;
+
 				}
 			}
 		}
