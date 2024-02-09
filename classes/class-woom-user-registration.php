@@ -145,7 +145,7 @@ class WOOM_USER_REGISTRATION {
 				// Aftern midnight on day of event
 				if ( $midnight_timestamp < time() ) {
 					// directly call the cron task
-					woom_process_cron_task( $order_id, $item_id, 0 );
+					$this->woom_process_cron_task( $order_id, $item_id, 0 );
 				}
 			}
 		}
