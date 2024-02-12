@@ -23,7 +23,7 @@ if ( ! defined( 'WOOM_PLUGIN_PATH' ) ) {
 }
 
 if ( ! defined( 'WOOM_USER_REGISTRATION_VERSION' ) ) {
-	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.2.7' );
+	define( 'WOOM_USER_REGISTRATION_VERSION', '2024.2.12' );
 }
 
 // unix timestamp of start time of event

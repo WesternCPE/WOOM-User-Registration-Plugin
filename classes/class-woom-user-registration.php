@@ -59,7 +59,7 @@ class WOOM_USER_REGISTRATION {
 			order_id INT(11) NOT NULL,
 			item_id INT(11) NOT NULL,
 			product_id INT(11) NOT NULL,
-			webinar_id INT(11) NOT NULL,
+			webinar_id BIGINT(16) NOT NULL,
 			cron_date DATETIME NOT NULL,
 			calling_function TEXT,
 			request_data TEXT,
@@ -171,7 +171,7 @@ class WOOM_USER_REGISTRATION {
 	}
 
 
-
+    // $this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 	public function create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, $calling_function = '' ) {
 		global $wpdb;
 
