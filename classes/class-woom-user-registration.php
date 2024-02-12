@@ -170,8 +170,7 @@ class WOOM_USER_REGISTRATION {
 		$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 	}
 
-
-    // $this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
+	// $this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
 	public function create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, $calling_function = '' ) {
 		global $wpdb;
 
