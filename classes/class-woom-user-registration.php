@@ -153,21 +153,28 @@ class WOOM_USER_REGISTRATION {
 
 	public function run_woom_process_cron_task() {
 		// $order_id = 369877;
-		$item_id = 612324;
 
-		$item       = new WC_Order_Item_Product( $item_id );
-		$order_id   = $item->get_order_id();
-		$product_id = $item->get_product_id();
-		$order      = wc_get_order( $order_id );
-		$user_id    = $order->get_customer_id();
+		$item_ids = array( 612324 );
 
-		// woom_process_cron_task( $order_id, $item_id );
-		$timestamp = strtotime( '+1 minute' );
-		wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, 0 ) );
+		foreach ( $item_ids as $item_id ) {
+			// $this->woom_process_cron_task( 369877, $item_id, 0 );
 
-		$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
+			// $item_id = 612324;
 
-		$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
+			$item       = new WC_Order_Item_Product( $item_id );
+			$order_id   = $item->get_order_id();
+			$product_id = $item->get_product_id();
+			$order      = wc_get_order( $order_id );
+			$user_id    = $order->get_customer_id();
+
+			// woom_process_cron_task( $order_id, $item_id );
+			$timestamp = strtotime( '+' . ++$i . ' minute' );
+			wp_schedule_single_event( $timestamp, 'woom_cron_task', array( $order_id, $item_id, 0 ) );
+
+			$webinar_id = get_post_meta( $product_id, 'woom_webinar_id', true );
+
+			$this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
+		}
 	}
 
 	// $this->create_woom_logging_entry( $order_id, $item_id, $product_id, $user_id, $webinar_id, __METHOD__ );
