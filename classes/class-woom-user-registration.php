@@ -772,6 +772,10 @@ class WOOM_USER_REGISTRATION {
 
 			$start_date = get_post_meta( $product_id, WOOM_PRODUCT_START_TIME_META, true );
 
+			if ( empty( $start_date ) ) {
+				return 'Please check back at a later date.';
+			}
+
 			// sets time to 12:00 am
 			$date               = gmdate( 'Y-m-d', $start_date );
 			$midnight_timestamp = strtotime( $date );
